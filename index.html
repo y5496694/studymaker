@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 수업 지도안 생성기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Inter', sans-serif;
+        }
+        .ai-edit-modal, .iframe-modal {
+            transition: all 0.3s ease-in-out;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        [contenteditable="true"] {
+            position: relative;
+            padding: 2px 4px;
+            border-radius: 4px;
+            min-height: 24px;
+        }
+        [contenteditable="true"]:focus {
+            outline: 2px solid #3b82f6;
+            background-color: #eff6ff;
+        }
+        .editable-container { position: relative; }
+        .ai-edit-icon, .lookup-icon {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            cursor: pointer;
+            opacity: 1;
+            font-size: 14px;
+            z-index: 10;
+            transition: transform 0.2s;
+        }
+        .ai-edit-icon:hover, .lookup-icon:hover { transform: scale(1.2); }
+        [contenteditable="true"]:empty:before {
+            content: attr(placeholder);
+            color: #9ca3af;
+            cursor: text;
+        }
+        .action-btn {
+            background: none;
+            border: 1px solid #d1d5db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .action-btn.delete-row-btn:hover { background-color: #fee2e2; color: #ef4444; }
+        .special-activity-cell {
+            display: flex;
+            align-items: center;
+        }
+         .level-tag {
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-right: 8px;
+            font-size: 0.8rem;
+        }
+        .level-ga { background-color: #dbeafe; color: #1e40af; }
+        .level-na { background-color: #dcfce7; color: #166534; }
+        .level-da { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">AI 수업 지도안 생성기</h1>
+            <p class="text-gray-600 mt-2">빈 칸을 직접 채우거나 ✨ 아이콘을 눌러 AI의 도움을 받아보세요.</p>
+        </header>
+
+        <div class="w-full max-w-5xl mx-auto bg-white rounded-xl shadow-lg p-6 md:p-8">
+            <div class="flex justify-center border-b border-gray-200 mb-6">
+                <button id="general-plan-btn" class="px-4 py-2 text-lg font-semibold border-b-2 border-blue-500 text-blue-600">일반 수업 지도안</button>
+                <button id="special-plan-btn" class="px-4 py-2 text-lg font-semibold text-gray-500">특수 수업 지도안</button>
+            </div>
+
+            <!-- General Plan Section -->
+            <div id="general-plan-section">
+                <div id="lesson-plan-container" class="mt-2 border border-gray-300 rounded-lg p-4 bg-white">
+                     <h2 class="text-center text-2xl font-bold mb-4 flex justify-center items-baseline gap-2">
+                        <span class="cursor-pointer text-base hover:scale-125 transition-transform title-ai-icon" title="AI로 과목 수정">✨</span>
+                        <span id="plan-subject" class="text-2xl font-bold" contenteditable="true" data-context="subject" placeholder="(국어)"></span>
+                        <span>과 교수 학습 지도안</span>
+                    </h2>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 mb-4 text-sm">
+                        <div class="border p-2 rounded editable-container"><strong>단원:</strong> <span id="table-unit" contenteditable="true" data-context="unit" placeholder="1. 문학의 즐거움"></span><span class="ai-edit-icon" data-target-id="table-unit">✨</span></div>
+                        <div class="border p-2 rounded editable-container"><strong>차시:</strong> <span id="table-lesson-hour" contenteditable="true" data-context="lesson_hour" placeholder="3/8"></span><span class="ai-edit-icon" data-target-id="table-lesson-hour">✨</span></div>
+                        <div class="border p-2 rounded editable-container"><strong>수업 날짜:</strong> <span id="table-date" contenteditable="true" data-context="lesson_date" placeholder="YYYY-MM-DD"></span><span class="ai-edit-icon" data-target-id="table-date">✨</span></div>
+                        <div class="border p-2 rounded editable-container"><strong>지도교사:</strong> <span id="table-teacher" contenteditable="true" data-context="teacher_name" placeholder="홍길동"></span><span class="ai-edit-icon" data-target-id="table-teacher">✨</span></div>
+                        <div class="border p-2 rounded editable-container"><strong>학교급:</strong> <span id="table-school-level" contenteditable="true" data-context="school_level" placeholder="예) 중학교"></span><span class="ai-edit-icon" data-target-id="table-school-level">✨</span></div>
+                        <div class="border p-2 rounded editable-container"><strong>학년/반:</strong> <span id="table-grade-class" contenteditable="true" data-context="grade_class" placeholder="예) 2학년 3반"></span><span class="ai-edit-icon" data-target-id="table-grade-class">✨</span></div>
+                         <div class="border p-2 rounded col-span-2 editable-container">
+                            <strong>성취 기준:</strong> 
+                            <span id="table-achievement-standard" class="w-full inline-block" contenteditable="true" data-context="achievement_standard" placeholder="[9국01-01] 읽기는... 관련된 배경지식을 활용하여..."></span>
+                            <span class="lookup-icon" id="lookup-standard-btn" title="성취기준 조회">🌍</span>
+                        </div>
+                        <div class="border p-2 rounded col-span-2 editable-container">
+                            <strong>학습 목표:</strong> 
+                           <span id="table-objective" class="w-full inline-block" contenteditable="true" data-context="learning_objective" placeholder="성취 기준을 바탕으로 학습 목표를 생성할 수 있다."></span>
+                           <span class="ai-edit-icon" data-target-id="table-objective">✨</span>
+                        </div>
+                    </div>
+                    <table id="lesson-plan-table" class="w-full border-collapse border border-gray-400">
+                       <thead class="bg-gray-200">
+                            <tr>
+                                <th class="border border-gray-300 p-2 w-[7%]">단계</th>
+                                <th class="border border-gray-300 p-2 w-[15%]">학습 요소</th>
+                                <th class="border border-gray-300 p-2 w-[51%]">교수-학습 활동</th>
+                                <th class="border border-gray-300 p-2 w-[22%]">자료 및 유의점</th>
+                                <th class="border border-gray-300 p-2 w-[5%] action-col">작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lesson-plan-body"></tbody>
+                    </table>
+                    <div id="add-row-container" class="flex justify-end gap-2 mt-2">
+                        <button id="add-intro-row" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-lg">+ 도입 행 추가</button>
+                        <button id="add-dev-row" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-lg">+ 전개 행 추가</button>
+                        <button id="add-summary-row" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-lg">+ 정리 행 추가</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Special Plan Section -->
+            <div id="special-plan-section" class="hidden">
+                 <div id="special-lesson-plan-container" class="mt-2 border border-gray-300 rounded-lg p-4 bg-white">
+                    <h2 class="text-center text-2xl font-bold mb-4 flex justify-center items-baseline gap-2">
+                        <span class="cursor-pointer text-base hover:scale-125 transition-transform title-ai-icon" title="AI로 과목 수정" data-plan-type="special">✨</span>
+                        <span id="special-plan-subject" class="text-2xl font-bold" contenteditable="true" data-context="subject" placeholder="(체육)"></span>
+                        <span>과 교수학습 지도안</span>
+                    </h2>
+
+                    <!-- Student Level Definitions -->
+                    <div class="border-t border-b border-gray-200 my-4 py-4">
+                        <h3 class="font-bold text-lg mb-2 flex items-center"><span class="mr-2">🎯</span> 수준별 학생 특성</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                            <div class="border p-2 rounded editable-container bg-blue-50"><strong>가 수준 학생:</strong> <span id="special-student-ga" contenteditable="true" data-context="student_level_ga" placeholder="예: 규칙을 이해하고 신체 활동에 적극적으로 참여함"></span><span class="ai-edit-icon" data-target-id="special-student-ga">✨</span></div>
+                            <div class="border p-2 rounded editable-container bg-green-50"><strong>나 수준 학생:</strong> <span id="special-student-na" contenteditable="true" data-context="student_level_na" placeholder="예: 교사의 시범과 언어적 촉진을 통해 과제 수행 가능"></span><span class="ai-edit-icon" data-target-id="special-student-na">✨</span></div>
+                            <div class="border p-2 rounded editable-container bg-red-50"><strong>다 수준 학생:</strong> <span id="special-student-da" contenteditable="true" data-context="student_level_da" placeholder="예: 신체적, 인지적 어려움으로 과제 수행에 지속적인 도움이 필요함"></span><span class="ai-edit-icon" data-target-id="special-student-da">✨</span></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Differentiated Learning Objectives -->
+                    <div class="border-b border-gray-200 mb-4 pb-4">
+                        <h3 class="font-bold text-lg mb-2 flex items-center"><span class="mr-2">🌟</span> 수준별 학습 목표</h3>
+                        <div class="space-y-2 text-sm">
+                           <div class="border p-2 rounded editable-container"><strong>공통 성취기준:</strong> <span id="special-achievement-standard" contenteditable="true" data-context="achievement_standard" placeholder="[4체01-01] 건강 활동에 참여하며 체력을 증진한다."></span><span class="lookup-icon" data-target-id="special-achievement-standard" title="성취기준 조회">🌍</span></div>
+                           <div class="border p-2 rounded editable-container"><strong>공통 목표:</strong> <span id="special-common-objective" contenteditable="true" data-context="common_objective" placeholder="예: 건강 활동의 중요성을 알고 참여하는 태도를 가진다."></span><span class="ai-edit-icon" data-target-id="special-common-objective">✨</span></div>
+                           <div class="border p-2 rounded editable-container bg-blue-50"><strong>가 수준 목표:</strong> <span id="special-objective-ga" contenteditable="true" data-context="learning_objective_ga" placeholder="예: 다양한 건강 활동의 원리를 이해하고, 스스로 계획하여 체력을 증진할 수 있다."></span><span class="ai-edit-icon" data-target-id="special-objective-ga">✨</span></div>
+                           <div class="border p-2 rounded editable-container bg-green-50"><strong>나 수준 목표:</strong> <span id="special-objective-na" contenteditable="true" data-context="learning_objective_na" placeholder="예: 교사의 안내에 따라 2가지 이상의 건강 활동에 참여하여 체력을 기를 수 있다."></span><span class="ai-edit-icon" data-target-id="special-objective-na">✨</span></div>
+                           <div class="border p-2 rounded editable-container bg-red-50"><strong>다 수준 목표:</strong> <span id="special-objective-da" contenteditable="true" data-context="learning_objective_da" placeholder="예: 교사의 도움을 받아 1가지 이상의 건강 활동에 즐겁게 참여할 수 있다."></span><span class="ai-edit-icon" data-target-id="special-objective-da">✨</span></div>
+                        </div>
+                    </div>
+
+                    <table id="special-lesson-plan-table" class="w-full border-collapse border border-gray-400">
+                        <thead class="bg-gray-200">
+                            <tr>
+                                <th class="border border-gray-300 p-2 w-[7%]">단계</th>
+                                <th class="border border-gray-300 p-2 w-[15%]">학습 요소</th>
+                                <th class="border border-gray-300 p-2 w-[51%]">교수-학습 활동</th>
+                                <th class="border border-gray-300 p-2 w-[22%]">자료 및 유의점</th>
+                                <th class="border border-gray-300 p-2 w-[5%] action-col">작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="special-lesson-plan-body"></tbody>
+                    </table>
+                     <div id="special-add-row-container" class="flex justify-end gap-2 mt-2">
+                        <button id="special-add-intro-row" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-lg">+ 도입 행 추가</button>
+                        <button id="special-add-dev-row" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-lg">+ 전개 행 추가</button>
+                        <button id="special-add-summary-row" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-lg">+ 정리 행 추가</button>
+                    </div>
+                </div>
+            </div>
+            
+             <div id="action-buttons-container" class="text-center mt-8 flex justify-center items-center gap-4">
+                <button id="generate-rubric-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">서논술형 평가기준표 생성하기</button>
+                <button id="download-pdf-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">PDF로 다운로드</button>
+            </div>
+            
+            <div id="rubric-container" class="hidden mt-8">
+                <!-- AI-Generated Rubric will be inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <div id="ai-edit-modal" class="ai-edit-modal hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-11/12 md:w-1/2">
+            <h3 class="text-xl font-bold mb-4">AI 편집 요청</h3>
+            <p id="ai-edit-context-p" class="mb-2 text-gray-600"></p>
+            <textarea id="ai-edit-prompt" class="w-full p-2 border rounded" rows="4" placeholder="AI에게 구체적인 요구사항을 입력하세요 (선택 사항)"></textarea>
+            <div class="flex justify-end gap-2 mt-4">
+                <button id="ai-edit-cancel-btn" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">취소</button>
+                <button id="ai-auto-generate-btn" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center">
+                    <span class="btn-text">✨ 자동 생성</span>
+                    <div class="loader hidden ml-2"></div>
+                </button>
+                <button id="ai-prompt-generate-btn" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center">
+                    <span class="btn-text">생성</span>
+                    <div class="loader hidden ml-2"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="iframe-modal" class="iframe-modal hidden fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full h-full flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 class="text-xl font-bold">성취기준 조회 사이트</h3>
+                <button id="iframe-close-btn" class="text-2xl font-bold hover:text-red-500">&times;</button>
+            </div>
+            <iframe src="https://stas.moe.go.kr/cmn/main" class="w-full h-full border-0"></iframe>
+        </div>
+    </div>
+
+    <script>
+        const { jsPDF } = window.jspdf;
+
+        // --- DOM Elements ---
+        const generalBtn = document.getElementById('general-plan-btn');
+        const specialBtn = document.getElementById('special-plan-btn');
+        const generalPlanSection = document.getElementById('general-plan-section');
+        const specialPlanSection = document.getElementById('special-plan-section');
+        const lessonPlanBody = document.getElementById('lesson-plan-body');
+        const specialLessonPlanBody = document.getElementById('special-lesson-plan-body');
+        const downloadPdfBtn = document.getElementById('download-pdf-btn');
+        const generateRubricBtn = document.getElementById('generate-rubric-btn');
+        const rubricContainer = document.getElementById('rubric-container');
+        const aiEditModal = document.getElementById('ai-edit-modal');
+        const aiAutoGenerateBtn = document.getElementById('ai-auto-generate-btn');
+        const aiPromptGenerateBtn = document.getElementById('ai-prompt-generate-btn');
+        const iframeModal = document.getElementById('iframe-modal');
+        
+        // --- State ---
+        let currentEditingElement = null;
+        let rowCounter = 0;
+        let specialRowCounter = 0;
+        let activePlanType = 'general'; // 'general' or 'special'
+
+        // --- Initializers ---
+        
+        function initializeAllTables() {
+            initializeGeneralTable();
+            initializeSpecialTable();
+        }
+
+        function initializeGeneralTable() {
+            lessonPlanBody.innerHTML = '';
+            const sections = {
+                introduction: { name: '도입', elements: ['분위기 조성', '전시학습 상기', '학습 동기 유발', '학습 목표 확인'] },
+                development: { name: '전개', elements: ['활동1', '활동2', '활동3'] },
+                summary: { name: '정리', elements: ['정리', '평가', '차시 예고'] }
+            };
+            for (const sectionKey in sections) {
+                sections[sectionKey].elements.forEach(elementName => {
+                    lessonPlanBody.appendChild(createGeneralRow(sectionKey, sections[sectionKey].name, elementName));
+                });
+            }
+        }
+        
+        function initializeSpecialTable() {
+            specialLessonPlanBody.innerHTML = '';
+            const introElements = ['분위기 조성', '전시학습 상기', '학습 동기 유발', '학습 목표 확인'];
+            const devElements = ['활동1', '활동2', '활동3'];
+            const summaryElements = ['정리', '평가', '차시 예고'];
+
+            introElements.forEach(elementName => {
+                specialLessonPlanBody.appendChild(createSpecialMergedRow('introduction', '도입', elementName));
+            });
+
+            devElements.forEach(elementName => {
+                const rows = createSpecialDifferentiatedRows('development', '전개', elementName);
+                rows.forEach(row => specialLessonPlanBody.appendChild(row));
+            });
+
+            summaryElements.forEach(elementName => {
+                specialLessonPlanBody.appendChild(createSpecialMergedRow('summary', '정리', elementName));
+            });
+        }
+
+
+        // --- Row Creation ---
+
+        function createGeneralRow(section, sectionName, elementName = '') {
+            const tr = document.createElement('tr');
+            tr.dataset.section = section;
+            rowCounter++;
+            const stageTd = document.createElement('td');
+            stageTd.className = 'border border-gray-300 p-2 text-center align-middle font-semibold stage-cell';
+            stageTd.textContent = sectionName;
+            const elementTd = document.createElement('td');
+            elementTd.className = 'border border-gray-300 p-2';
+            elementTd.contentEditable = true;
+            elementTd.textContent = elementName;
+            const activityTd = createEditableCell(`activity-${rowCounter}`, `${section}_activity`);
+            const materialTd = createEditableCell(`material-${rowCounter}`, `${section}_material`);
+            const actionTd = createActionCell();
+            tr.append(stageTd, elementTd, activityTd, materialTd, actionTd);
+            return tr;
+        }
+
+        function createSpecialMergedRow(section, sectionName, elementName) {
+             const tr = document.createElement('tr');
+            tr.dataset.section = section;
+            tr.dataset.learningElement = elementName;
+            specialRowCounter++;
+            
+            const stageTd = document.createElement('td');
+            stageTd.className = 'border border-gray-300 p-2 text-center align-middle font-semibold';
+            stageTd.textContent = sectionName;
+
+            const elementTd = document.createElement('td');
+            elementTd.className = 'border border-gray-300 p-2';
+            elementTd.contentEditable = true;
+            elementTd.textContent = elementName;
+
+            const activityTd = createEditableCell(`special-activity-merged-${specialRowCounter}`, `${section}_activity`);
+            const materialTd = createEditableCell(`special-material-merged-${specialRowCounter}`, `${section}_material`);
+            const actionTd = createActionCell();
+
+            tr.append(stageTd, elementTd, activityTd, materialTd, actionTd);
+            return tr;
+        }
+
+        function createSpecialDifferentiatedRows(section, sectionName, elementName) {
+            const rows = [];
+            const blockId = `block-${specialRowCounter++}`;
+            const levels = ['ga', 'na', 'da'];
+            const levelInfo = {
+                ga: { name: '가' },
+                na: { name: '나' },
+                da: { name: '다' },
+            };
+            
+            levels.forEach((level, index) => {
+                const tr = document.createElement('tr');
+                tr.dataset.section = section;
+                tr.dataset.learningElement = elementName;
+                tr.dataset.level = level;
+                tr.dataset.blockId = blockId;
+
+                const stageTd = document.createElement('td');
+                stageTd.className = 'border border-gray-300 p-2 text-center align-middle font-semibold';
+                stageTd.textContent = sectionName;
+
+                const elementTd = document.createElement('td');
+                elementTd.className = 'border border-gray-300 p-2 align-middle';
+                elementTd.contentEditable = true;
+                elementTd.textContent = elementName;
+
+                const activityTd = document.createElement('td');
+                activityTd.className = 'border border-gray-300 p-0';
+                const activityId = `activity-${level}-${specialRowCounter}-${index}`;
+                activityTd.innerHTML = `
+                <div class="editable-container w-full h-full p-2 special-activity-cell">
+                    <span class="level-tag level-${level}">${levelInfo[level].name}</span>
+                    <span id="${activityId}" class="block w-full" contenteditable="true" data-context="${section}_activity_${level}"></span>
+                    <span class="ai-edit-icon" data-target-id="${activityId}">✨</span>
+                </div>`;
+                
+                const materialTd = createEditableCell(`material-${level}-${specialRowCounter}-${index}`, `${section}_material_${level}`);
+
+                tr.append(stageTd, elementTd, activityTd, materialTd, createActionCell());
+                rows.push(tr);
+            });
+
+            return rows;
+        }
+
+
+        function createEditableCell(id, context) {
+            const td = document.createElement('td');
+            td.className = 'border border-gray-300 p-0';
+            td.innerHTML = `
+                <div class="editable-container w-full h-full p-2">
+                    <span id="${id}" class="block w-full h-full" contenteditable="true" data-context="${context}"></span>
+                    <span class="ai-edit-icon" data-target-id="${id}">✨</span>
+                </div>`;
+            return td;
+        }
+
+        function createActionCell() {
+            const actionTd = document.createElement('td');
+            actionTd.className = 'border border-gray-300 p-2 text-center align-middle action-col';
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'action-btn delete-row-btn';
+            deleteBtn.textContent = '−';
+            deleteBtn.title = '이 행 삭제';
+            actionTd.appendChild(deleteBtn);
+            return actionTd;
+        }
+        
+        // --- Event Listeners ---
+        function setupEventListeners() {
+            // Tab switching
+            generalBtn.addEventListener('click', () => switchPlanView('general'));
+            specialBtn.addEventListener('click', () => switchPlanView('special'));
+            
+            // Row manipulation
+            document.getElementById('add-intro-row').addEventListener('click', () => addRow('introduction', 'general'));
+            document.getElementById('add-dev-row').addEventListener('click', () => addRow('development', 'general'));
+            document.getElementById('add-summary-row').addEventListener('click', () => addRow('summary', 'general'));
+            
+            document.getElementById('special-add-intro-row').addEventListener('click', () => addRow('introduction', 'special'));
+            document.getElementById('special-add-dev-row').addEventListener('click', () => addRow('development', 'special'));
+            document.getElementById('special-add-summary-row').addEventListener('click', () => addRow('summary', 'special'));
+
+            // Delete rows
+            document.body.addEventListener('click', function(e) {
+                if (e.target.classList.contains('delete-row-btn')) {
+                    const row = e.target.closest('tr');
+                    const blockId = row.dataset.blockId;
+                    if (blockId && row.dataset.section === 'development') {
+                        // If it's a differentiated block, delete all rows with the same blockId
+                        document.querySelectorAll(`tr[data-block-id="${blockId}"]`).forEach(r => r.remove());
+                    } else {
+                        // Otherwise, just delete the single row
+                        row.remove();
+                    }
+                }
+            });
+
+            // AI Edit Modal and other modals
+            document.getElementById('ai-edit-cancel-btn').addEventListener('click', closeAiEditModal);
+            document.getElementById('iframe-close-btn').addEventListener('click', () => iframeModal.classList.add('hidden'));
+
+            document.body.addEventListener('click', (e) => {
+                if (e.target.matches('.ai-edit-icon, .title-ai-icon, .lookup-icon')) {
+                    if (e.target.matches('.lookup-icon')) {
+                        iframeModal.classList.remove('hidden');
+                        return;
+                    }
+                    const targetId = e.target.dataset.targetId || (e.target.matches('.title-ai-icon') ? (activePlanType === 'general' ? 'plan-subject' : 'special-plan-subject') : null);
+                    const targetElement = document.getElementById(targetId);
+                    if (targetElement) openAiEditModal(targetElement);
+                }
+            });
+            
+            // Main Action Buttons
+            downloadPdfBtn.addEventListener('click', downloadAsPdf);
+            generateRubricBtn.addEventListener('click', generateRubric);
+            aiAutoGenerateBtn.addEventListener('click', () => handleAiGeneration(true));
+            aiPromptGenerateBtn.addEventListener('click', () => handleAiGeneration(false));
+        }
+        
+        // --- Core Logic ---
+
+        function switchPlanView(planType) {
+            activePlanType = planType;
+            if (planType === 'general') {
+                generalPlanSection.classList.remove('hidden');
+                specialPlanSection.classList.add('hidden');
+                generalBtn.classList.add('border-blue-500', 'text-blue-600');
+                specialBtn.classList.remove('border-blue-500', 'text-blue-600');
+            } else {
+                generalPlanSection.classList.add('hidden');
+                specialPlanSection.classList.remove('hidden');
+                specialBtn.classList.add('border-blue-500', 'text-blue-600');
+                generalBtn.classList.remove('border-blue-500', 'text-blue-600');
+            }
+            rubricContainer.innerHTML = '';
+            rubricContainer.classList.add('hidden');
+        }
+
+        function addRow(section, planType) {
+            const sectionName = getSectionKoreanName(section);
+            const elementName = '새 학습 요소';
+            
+            const tableBody = planType === 'general' ? lessonPlanBody : specialLessonPlanBody;
+            let anchorElement = tableBody.querySelector(`tr[data-section="${section}"]:last-of-type`) || tableBody.lastElementChild;
+            
+            if (planType === 'general') {
+                const newRow = createGeneralRow(section, sectionName, elementName);
+                if (anchorElement) anchorElement.after(newRow); else tableBody.appendChild(newRow);
+            } else { // Special Plan
+                 if(section === 'development') {
+                     const newRows = createSpecialDifferentiatedRows(section, sectionName, elementName);
+                     if(anchorElement) anchorElement.after(...newRows.reverse()); else newRows.forEach(r => tableBody.appendChild(r));
+                 } else {
+                     const newRow = createSpecialMergedRow(section, sectionName, elementName);
+                     if(anchorElement) anchorElement.after(newRow); else tableBody.appendChild(newRow);
+                 }
+            }
+        }
+        
+        async function downloadAsPdf() {
+            const isSpecial = activePlanType === 'special';
+            const containerId = isSpecial ? 'special-lesson-plan-container' : 'lesson-plan-container';
+            const element = document.getElementById(containerId);
+            const table = element.querySelector('table');
+            const addButtons = element.querySelector('[id$="-add-row-container"]');
+
+            // 1. Hide unwanted elements for PDF
+            const actionTh = table.querySelector('thead th.action-col');
+            const actionTds = table.querySelectorAll('tbody td.action-col');
+            if (actionTh) actionTh.style.display = 'none';
+            actionTds.forEach(td => td.style.display = 'none');
+            if (addButtons) addButtons.style.display = 'none';
+
+            // 2. Prepare tables by merging cells (rowspan)
+            if (isSpecial) {
+                prepareSpecialTableForPdf();
+            } else {
+                prepareGeneralTableForPdf();
+            }
+
+            // 3. Generate PDF from the prepared element
+            await html2canvas(element, { scale: 2, useCORS: true }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const pdfPageWidth = pdf.internal.pageSize.getWidth();
+                const pdfPageHeight = pdf.internal.pageSize.getHeight();
+                const ratio = pdfPageWidth / canvas.width;
+                let scaledImgHeight = canvas.height * ratio;
+                let heightLeft = scaledImgHeight;
+                let position = 0;
+
+                pdf.addImage(imgData, 'PNG', 0, position, pdfPageWidth, scaledImgHeight);
+                heightLeft -= pdfPageHeight;
+
+                while (heightLeft > 0) {
+                    position = position - pdfPageHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, pdfPageWidth, scaledImgHeight);
+                    heightLeft -= pdfPageHeight;
+                }
+                
+                const topic = (isSpecial ? document.getElementById('special-plan-subject').textContent : document.getElementById('table-unit').textContent) || '수업지도안';
+                pdf.save(`${topic}.pdf`);
+            });
+            
+            // 4. Restore table to its original state
+            if (isSpecial) {
+                 restoreSpecialTableFromPdf();
+            } else {
+                restoreGeneralTableFromPdf();
+            }
+
+            // 5. Restore hidden elements
+            if (actionTh) actionTh.style.display = '';
+            actionTds.forEach(td => td.style.display = '');
+            if (addButtons) addButtons.style.display = '';
+        }
+        
+        function prepareSpecialTableForPdf() {
+            const tableBody = specialLessonPlanBody;
+            ['introduction', 'development', 'summary'].forEach(section => {
+                const rows = Array.from(tableBody.querySelectorAll(`tr[data-section="${section}"]`));
+                if (rows.length > 0) {
+                    // Merge '단계' (Stage) cell for the entire section
+                    const firstStageCell = rows[0].cells[0];
+                    firstStageCell.rowSpan = rows.length;
+                    for (let i = 1; i < rows.length; i++) {
+                        rows[i].cells[0].style.display = 'none';
+                    }
+
+                    // For 'development' stage, also merge '학습 요소' (Learning Element) for each activity block
+                    if (section === 'development') {
+                        const activityBlocks = new Map();
+                        rows.forEach(row => {
+                            const blockId = row.dataset.blockId;
+                            if (!activityBlocks.has(blockId)) {
+                                activityBlocks.set(blockId, []);
+                            }
+                            activityBlocks.get(blockId).push(row);
+                        });
+
+                        activityBlocks.forEach(blockRows => {
+                            if (blockRows.length > 1) {
+                                const firstElementCell = blockRows[0].cells[1];
+                                firstElementCell.rowSpan = blockRows.length;
+                                for (let i = 1; i < blockRows.length; i++) {
+                                    blockRows[i].cells[1].style.display = 'none';
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+        }
+        
+        function restoreSpecialTableFromPdf() {
+            specialLessonPlanBody.querySelectorAll('tr').forEach(row => {
+                Array.from(row.cells).forEach(cell => {
+                    cell.rowSpan = 1;
+                    cell.style.display = '';
+                });
+            });
+        }
+
+        function prepareGeneralTableForPdf() {
+            ['introduction', 'development', 'summary'].forEach(section => {
+                const rows = lessonPlanBody.querySelectorAll(`tr[data-section="${section}"]`);
+                if (rows.length > 1) {
+                    const firstCell = rows[0].cells[0];
+                    firstCell.rowSpan = rows.length;
+                    for (let i = 1; i < rows.length; i++) {
+                        rows[i].cells[0].style.display = 'none';
+                    }
+                }
+            });
+        }
+        
+        function restoreGeneralTableFromPdf() {
+             lessonPlanBody.querySelectorAll('tr').forEach(row => {
+                Array.from(row.cells).forEach(cell => {
+                    cell.rowSpan = 1;
+                    cell.style.display = '';
+                })
+             });
+        }
+
+        // --- AI & API Calls ---
+        async function callGeminiAPI(prompt, schema) {
+             let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+             const payload = { 
+                 contents: chatHistory, 
+                 generationConfig: { responseMimeType: "application/json", responseSchema: schema } 
+             };
+             const apiKey = ""; 
+             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+             const response = await fetch(apiUrl, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify(payload)
+             });
+             if (!response.ok) throw new Error(`API call failed: ${response.statusText}`);
+             const result = await response.json();
+             if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+                 return result.candidates[0].content.parts[0].text;
+             }
+             console.error("Unexpected API Response:", result);
+             throw new Error("Unexpected API response structure");
+        }
+        
+        async function handleAiGeneration(isAuto) {
+            const userInput = isAuto ? '' : document.getElementById('ai-edit-prompt').value;
+            if (!currentEditingElement) return;
+
+            const row = currentEditingElement.closest('tr');
+            if (row && currentEditingElement.dataset.context.includes('_activity') && (row.dataset.learningElement === '학습 목표 확인' || (row.cells[1] && row.cells[1].innerText === '학습 목표 확인')) ) {
+                 let objective = '';
+                 let content = '';
+
+                if (activePlanType === 'general') {
+                    objective = document.getElementById('table-objective').innerText || '(학습 목표를 입력해주세요)';
+                    content = `○ 학습 목표와 오늘 배울 내용을 안내한다.<br><div class="text-center font-bold mt-1 p-2 bg-blue-50 rounded">'${objective}'</div>`;
+                } else { // Special plan
+                    objective = document.getElementById('special-common-objective').innerText || '(공통 목표를 입력해주세요)';
+                    content = `○ 공통 목표와 오늘 배울 내용을 안내한다.<br><div class="text-center font-bold mt-1 p-2 bg-yellow-100 rounded">'${objective}'</div>`;
+                }
+                
+                currentEditingElement.innerHTML = content;
+                closeAiEditModal();
+                return;
+            }
+
+            if (!isAuto && !userInput) {
+                alert('AI에게 전달할 구체적인 요구사항을 입력해주세요.'); return;
+            }
+
+            const button = isAuto ? aiAutoGenerateBtn : aiPromptGenerateBtn;
+            button.querySelector('.btn-text').classList.add('hidden');
+            button.querySelector('.loader').classList.remove('hidden');
+            aiAutoGenerateBtn.disabled = true; aiPromptGenerateBtn.disabled = true;
+
+            const prompt = createEditPrompt(userInput);
+            
+            try {
+                const schema = { type: "OBJECT", properties: { new_content: { type: "STRING" } }, required: ["new_content"] };
+                const resultText = await callGeminiAPI(prompt, schema);
+                const result = JSON.parse(resultText);
+                currentEditingElement.innerHTML = result.new_content.replace(/\n/g, '<br>');
+                closeAiEditModal();
+            } catch (error) {
+                console.error("AI cell edit error:", error);
+                alert(`AI 편집 중 오류가 발생했습니다: ${error.message}`);
+            } finally {
+                button.querySelector('.btn-text').classList.remove('hidden');
+                button.querySelector('.loader').classList.add('hidden');
+                aiAutoGenerateBtn.disabled = false; aiPromptGenerateBtn.disabled = false;
+            }
+        }
+        
+        async function generateRubric() {
+            rubricContainer.classList.remove('hidden');
+            rubricContainer.innerHTML = `<div class="flex justify-center items-center p-8"><div class="loader"></div><span class="ml-4 text-gray-600">평가기준표 생성 중...</span></div>`;
+
+            const lessonContext = getLessonContext();
+            const activities = getActivities();
+            const year = new Date().getFullYear();
+            const grade = (lessonContext.grade_class.match(/\d+학년/) || ['O학년'])[0]; 
+
+            const prompt = createRubricPrompt(lessonContext, activities);
+            const schema = {
+                type: "OBJECT",
+                properties: {
+                    assessment_domain: { type: "STRING" }, assessment_tool: { type: "STRING" },
+                    assessment_content: { type: "STRING" }, criteria_high: { type: "STRING" },
+                    criteria_medium: { type: "STRING" }, criteria_low: { type: "STRING" },
+                    assessment_intent: { type: "STRING" }
+                },
+                required: ["assessment_domain", "assessment_tool", "assessment_content", "criteria_high", "criteria_medium", "criteria_low", "assessment_intent"]
+            };
+
+            try {
+                const resultText = await callGeminiAPI(prompt, schema);
+                const result = JSON.parse(resultText);
+                const rubricHTML = `
+                    <div class="border border-gray-300 rounded-lg p-4 bg-white">
+                        <h3 class="text-center text-xl font-bold mb-4">${year}년도 서논술형 수행평가기준안 ${grade} ${lessonContext.subject}과</h3>
+                        <table class="w-full border-collapse border border-gray-400 text-sm">
+                            <tbody>
+                                <tr class="border border-gray-300"><td class="p-2 font-semibold bg-gray-100 w-1/5">단원명</td><td class="p-2" colspan="3">${lessonContext.unit}</td></tr>
+                                <tr class="border border-gray-300"><td class="p-2 font-semibold bg-gray-100">평가 영역</td><td class="p-2 w-2/5">${result.assessment_domain}</td><td class="p-2 font-semibold bg-gray-100 w-1/5">평가 도구</td><td class="p-2 w-2/5">${result.assessment_tool}</td></tr>
+                                <tr class="border border-gray-300"><td class="p-2 font-semibold bg-gray-100">성취 기준</td><td class="p-2" colspan="3">${lessonContext.achievement_standard}</td></tr>
+                                <tr class="border border-gray-300"><td class="p-2 font-semibold bg-gray-100">평가 내용</td><td class="p-2" colspan="3">${result.assessment_content.replace(/\n/g, '<br>')}</td></tr>
+                                <tr class="border border-gray-300"><td class="p-2 font-semibold bg-gray-100 align-top" rowspan="3">평가 기준</td><td class="p-2 font-semibold bg-gray-50 w-[10%]">상</td><td class="p-2" colspan="2">${result.criteria_high.replace(/\n/g, '<br>')}</td></tr>
+                                <tr class="border border-gray-300"><td class="p-2 font-semibold bg-gray-50">중</td><td class="p-2" colspan="2">${result.criteria_medium.replace(/\n/g, '<br>')}</td></tr>
+                                <tr class="border border-gray-300"><td class="p-2 font-semibold bg-gray-50">하</td><td class="p-2" colspan="2">${result.criteria_low.replace(/\n/g, '<br>')}</td></tr>
+                                <tr class="border border-gray-300"><td class="p-2 font-semibold bg-gray-100">평가 의도</td><td class="p-2" colspan="3">${result.assessment_intent.replace(/\n/g, '<br>')}</td></tr>
+                            </tbody>
+                        </table>
+                    </div>`;
+                rubricContainer.innerHTML = rubricHTML;
+            } catch (error) {
+                console.error("Rubric generation error:", error);
+                rubricContainer.innerHTML = `<p class="text-red-500 text-center p-4">오류 발생: ${error.message}</p>`;
+            }
+        }
+        
+        // --- Context & Prompt Generation ---
+        function getLessonContext() {
+            if (activePlanType === 'general') {
+                return {
+                    subject: document.getElementById('plan-subject').innerText,
+                    unit: document.getElementById('table-unit').innerText,
+                    grade_class: document.getElementById('table-grade-class').innerText,
+                    achievement_standard: document.getElementById('table-achievement-standard').innerText,
+                    objective: document.getElementById('table-objective').innerText,
+                };
+            } else { // special
+                 return {
+                    subject: document.getElementById('special-plan-subject').innerText,
+                    unit: '(특수 교육 지도안)',
+                    grade_class: '해당 학년',
+                    achievement_standard: document.getElementById('special-achievement-standard').innerText,
+                    common_objective: document.getElementById('special-common-objective').innerText,
+                    objective: `(가): ${document.getElementById('special-objective-ga').innerText}\n(나): ${document.getElementById('special-objective-na').innerText}\n(다): ${document.getElementById('special-objective-da').innerText}`,
+                    student_levels: `(가): ${document.getElementById('special-student-ga').innerText}\n(나): ${document.getElementById('special-student-na').innerText}\n(다): ${document.getElementById('special-student-da').innerText}`
+                };
+            }
+        }
+        
+        function getActivities() {
+            // This function might need adjustment for special plan if rubric needs differentiated activities
+            return ''; 
+        }
+
+        function createRubricPrompt(context, activities) {
+            let special_instructions = '';
+            if (activePlanType === 'special') {
+                special_instructions = `
+                **Differentiated Context:**
+                - Student Levels: ${context.student_levels}
+                - Common Goal: ${context.common_objective}
+                - Differentiated Objectives: ${context.objective}
+                
+                Generate the rubric primarily based on the '나' (medium) level objective, but ensure the criteria for '상' and '하' reflect the characteristics of '가' and '다' students and objectives.`;
+            }
+
+            return `You are an expert in creating performance assessment rubrics for Korean schools.
+            Based on the lesson plan, generate a detailed rubric.
+
+            **Lesson Plan Context:**
+            - Subject: ${context.subject || '(Not specified)'}
+            - Achievement Standard: ${context.achievement_standard || '(Not specified)'}
+            - Main Learning Objective(s): ${context.objective || '(Not specified)'}
+            ${special_instructions}
+            
+            **Task:** Generate content for the rubric fields. Response MUST be in KOREAN and JSON.`;
+        }
+        
+        function openAiEditModal(element) {
+            currentEditingElement = element;
+            aiEditModal.classList.remove('hidden');
+            document.getElementById('ai-edit-prompt').focus();
+            // Update context message in modal
+            const contextText = getColumnKoreanName(currentEditingElement);
+            const row = element.closest('tr');
+            if(row) {
+                let learningElement = row.dataset.learningElement || (row.cells[1] ? row.cells[1].innerText : '');
+                 document.getElementById('ai-edit-context-p').textContent = `'${getSectionKoreanName(row.dataset.section)} > ${learningElement}'에 대한 '${contextText}' 항목을 수정합니다.`;
+            } else {
+                 document.getElementById('ai-edit-context-p').textContent = `'${contextText}' 항목을 수정합니다.`;
+            }
+        }
+
+        function closeAiEditModal() {
+            aiEditModal.classList.add('hidden');
+            document.getElementById('ai-edit-prompt').value = '';
+            currentEditingElement = null;
+        }
+
+        function getColumnKoreanName(element) {
+            const context = element.dataset.context;
+            const names = {
+                subject: '과목', unit: '단원', lesson_hour: '차시', lesson_date: '수업 날짜',
+                teacher_name: '지도교사', school_level: '학교급', grade_class: '학년/반',
+                achievement_standard: '성취 기준', learning_objective: '학습 목표',
+                common_objective: '공통 목표',
+                student_level_ga: '가 수준 학생 특성', student_level_na: '나 수준 학생 특성', student_level_da: '다 수준 학생 특성',
+                learning_objective_ga: '가 수준 목표', learning_objective_na: '나 수준 목표', learning_objective_da: '다 수준 목표',
+            };
+            if (names[context]) return names[context];
+
+            if(context.endsWith('_activity_ga')) return '교수-학습 활동 (가)';
+            if(context.endsWith('_activity_na')) return '교수-학습 활동 (나)';
+            if(context.endsWith('_activity_da')) return '교수-학습 활동 (다)';
+            if(context.endsWith('_activity')) return '교수-학습 활동';
+
+            if(context.endsWith('_material_ga')) return '자료 및 유의점 (가)';
+            if(context.endsWith('_material_na')) return '자료 및 유의점 (나)';
+            if(context.endsWith('_material_da')) return '자료 및 유의점 (다)';
+            if(context.includes('material')) return '자료 및 유의점';
+            
+            return '항목';
+        }
+
+
+        function createEditPrompt(userInstruction) {
+            const lessonContext = getLessonContext();
+            const currentContent = currentEditingElement.innerText;
+            const contextId = currentEditingElement.dataset.context;
+            const columnName = getColumnKoreanName(currentEditingElement);
+            let specificRoleInstruction = '';
+
+            if (contextId === 'common_objective') {
+                specificRoleInstruction = `5. **Common Objective Rule:** You MUST generate a single, overarching goal for the entire class based on the **Achievement Standard**: "${lessonContext.achievement_standard}". This goal should be broader than the specific, measurable leveled objectives. It should describe a general attitude or understanding. For example: "건강 활동의 중요성을 알고 참여하는 태도를 가진다."`;
+            } else if (contextId.startsWith('learning_objective_')) {
+                const level = contextId.slice(-2); // 'ga', 'na', or 'da'
+                let levelDescription = '';
+                if (level === 'ga') levelDescription = "HIGHEST level ('가') students. This goal should be challenging.";
+                if (level === 'na') levelDescription = "MIDDLE level ('나') students. This goal should be the standard expectation.";
+                if (level === 'da') levelDescription = "LOWEST level ('다') students. This goal should be simple and achievable with support.";
+
+                specificRoleInstruction = `5. **Differentiated Objective Rule:** You MUST generate a single, concise learning objective for the ${levelDescription}
+                - It MUST be based on the **Common Goal**: "${lessonContext.common_objective}".
+                - It MUST ALSO consider the student characteristics for that level: "${lessonContext.student_levels}".
+                - The format MUST be "~할 수 있다."`;
+            }
+
+            let prompt = `You are an expert instructional designer for a Korean school.\n`;
+            prompt += `**Lesson Context:**\n- Subject: ${lessonContext.subject}\n- Achievement Standard: ${lessonContext.achievement_standard}\n`;
+            if (activePlanType === 'special') {
+                 prompt += `- Student Levels & Objectives:\n${lessonContext.student_levels}\n- Common Goal: ${lessonContext.common_objective}\n- Differentiated Objectives: ${lessonContext.objective}\n`;
+            } else {
+                 prompt += `- Learning Objective: ${lessonContext.objective}\n`;
+            }
+
+            prompt += `\n**Your Task:**\nGenerate new content for the field identified as '${columnName}'.\n`;
+            prompt += `- User's request: "${userInstruction || 'Auto-generate based on context.'}"\n`;
+            prompt += `- Current content: "${currentContent}"\n`;
+            prompt += `\n**CRITICAL INSTRUCTIONS:**\n- Respond in natural, professional KOREAN.\n- Follow Korean lesson plan conventions.\n- The response must be a single JSON object: {"new_content": "..."}\n`;
+            prompt += specificRoleInstruction + '\n';
+           
+            if(contextId.includes('_activity_ga') || contextId.includes('_material_ga')) prompt += "- This content is for the HIGHEST level ('가') students. Make it challenging and promote independent thinking.\n";
+            if(contextId.includes('_activity_na') || contextId.includes('_material_na')) prompt += "- This content is for the MIDDLE level ('나') students. Provide clear instructions and support.\n";
+            if(contextId.includes('_activity_da') || contextId.includes('_material_da')) prompt += "- This content is for the LOWEST level ('다') students. Make it simple, concrete, and provide significant scaffolding or direct assistance.\n";
+
+            return prompt;
+        }
+
+        function getSectionKoreanName(section) {
+            return { introduction: '도입', development: '전개', summary: '정리' }[section] || '';
+        }
+
+        // --- Window Onload ---
+        window.onload = () => {
+            initializeAllTables();
+            document.getElementById('table-date').textContent = new Date().toISOString().slice(0, 10);
+            setupEventListeners();
+        };
+
+    </script>
+</body>
+</html>
